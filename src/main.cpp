@@ -100,6 +100,7 @@ int main() {
 		  
           int previous_size = previous_path_x.size();
           bool too_close = false;
+          bool decrease_speed = false;
           // Compute if car is ahead of us
           if (previous_size > 0)
           {
@@ -128,6 +129,19 @@ int main() {
               
             }
           }
+          
+          // New code
+          if(too_close)
+          {
+            vector<int> next_lanes = getProspectiveLanesToChange(lane);
+            change_lane = getBestLaneToChange(next_lanes, sensor_fusion, car_s);
+            if (change_lane == -1)
+            {
+              std::cout << "Now might not be a good time to change lanes, Need to reduce speed" << std::endl;
+              decrease_speed = true;
+            }
+          }
+          
           
           if(too_close)
           {

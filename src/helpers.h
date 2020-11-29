@@ -153,5 +153,53 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 
   return {x,y};
 }
+// This function will provide the list of lanes where I can switch next
+vector<int> getProspectiveLanesToChange(int &lane)
+{
+  vector<int> lanes;
+  for(int i=-1; i < 2; i++)
+  {
+    int new_lane = lane + i;
+    if (0 <= lane <= 2) && (new_lane != lane)
+    {
+      lanes.push_back(new_lane)
+    }
+  }
+}
 
+int getBestLaneToChange(vect<int> &next_lanes, auto &sensor_fusion, const double &car_s)
+{
+  int best_lane = -1;
+  for(int i =0; i < next_lanes.size(); i++):
+  {
+    current_lane = next_lanes[i];
+    best_lane = current_lane;
+    // iterate over all potential future lanes
+    for(int j =0; j < sensor_fusion.size(); j++)
+    {
+      d = sensor_fusion[i];
+      // check if the vehicle belong to lane that we are considering
+      if ((2 + current_lane*4 + 2 )<= d <= (2 + current_lane*4 - 2))
+      {
+        double vx = sensor_fusion[i][3];
+        double vy = sensor_fusion[i][4];
+        double car_speed = sqrt(vx*vx + vy*vy);
+              
+        double s = sensor_fusion[i][5];
+        s += (double)previous_size*0.02*car_speed;
+        // check if there is a car in that lane in +/- 60 meters from current car position
+        if (car_s - 60 <= s < car_s + 60)
+        {
+          best_lane = -1;
+        }
+      }
+      // If I find a best lane then return no need to check once again for another lane
+      if(best_lane != -1)
+      {
+        break;
+      }
+    }
+  }
+  return best_lane;
+}
 #endif  // HELPERS_H
