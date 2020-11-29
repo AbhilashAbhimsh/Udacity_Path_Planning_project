@@ -50,20 +50,24 @@ int main() {
     map_waypoints_dx.push_back(d_x);
     map_waypoints_dy.push_back(d_y);
   }
-
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy]
+  
+  int lane = 1;
+  double MAX_SPEED = 49.5;
+  double MAX_ACCELERATION = 0.224;
+  double ref_speed = 0;// MPH
+  
+  h.onMessage([&ref_speed, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+               &map_waypoints_dx,&map_waypoints_dy, &lane, &MAX_SPEED, &MAX_ACCELERATION]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
+    
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
       auto s = hasData(data);
 	  
-      int lane = 1;
-      double ref_speed = 49.5;// MPH
       
       if (s != "") {
         auto j = json::parse(s);
@@ -95,12 +99,53 @@ int main() {
           json msgJson;
 		  
           int previous_size = previous_path_x.size();
+          bool too_close = false;
+          // Compute if car is ahead of us
+          if (previous_size > 0)
+          {
+            car_s = end_path_s;
+          }
           
+          for(int i=0; i< sensor_fusion.size(); i++)
+          {
+            double d = sensor_fusion[i][6];
+            // check if the car is our lane
+            if (d <= (2+4*lane+2) && d >= (2 + 4*lane - 2))
+            {
+              
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double car_speed = sqrt(vx*vx + vy*vy);
+              
+              double s = sensor_fusion[i][5];
+              s += (double)previous_size*0.02*car_speed;
+              
+              if ((s > car_s) && (s - car_s < 30))
+              {
+                std::cout << "Car too close !!!!!" << std::endl;
+                too_close = true;
+              }
+              
+            }
+          }
+          
+          if(too_close)
+          {
+            std::cout << "Decreasing speed to " << ref_speed << std::endl;
+            ref_speed -= MAX_ACCELERATION;
+          }
+          else if(ref_speed < MAX_SPEED)
+          {
+            ref_speed += MAX_ACCELERATION;
+            std::cout << "Increasing speed to " << ref_speed << std::endl;
+          }
+            
           double ref_x = car_x;
           double ref_y = car_y;
           double ref_yaw = deg2rad(car_yaw);
-          std::cout << "Initial X value: " << car_x << std::endl;
-          std::cout << "Initial Y value: " << car_y << std::endl;
+          
+//           std::cout << "Initial X value: " << car_x << std::endl;
+//           std::cout << "Initial Y value: " << car_y << std::endl;
           vector<double> ptsx;
           vector<double> ptsy;
           
@@ -154,14 +199,18 @@ int main() {
           // Convert the present XY Global coordinate to Local Car's coordinates
           for(int i=0; i< ptsx.size(); i++)
           {
+            double prev_x = ptsx[i];
+            double prev_y = ptsy[i];
+            
             double shift_x = ptsx[i] - ref_x;
             double shift_y = ptsy[i] - ref_y;
             
             ptsx[i] = (shift_x*cos(0-ref_yaw) - shift_y*sin(0-ref_yaw));
             ptsy[i] = (shift_x*sin(0-ref_yaw) + shift_y*cos(0-ref_yaw));
             
-//             std::cout << "ptsx[" << i << "]: "<< ptsx[i] << " ";
-//             std::cout << "ptsy[" << i << "]: "<< ptsy[i] <<std::endl;
+//             std::cout << "ptsx[" << i << "]: Before: "<< prev_x << " After: " << ptsx[i] << std::endl;
+//             std::cout << "ptsy[" << i << "]: Before: "<< prev_y << " After: " << ptsy[i] << std::endl;
+        
           }
           
           // Fit the 5 points with spline
@@ -169,9 +218,9 @@ int main() {
    		  s.set_points(ptsx,ptsy);
           
           // Determine the spacing between points for optimal Jerk Free path
-          double target_dist_x = 30.0;
-          double target_dist_y = s(target_dist_x);
-          double dist = sqrt((target_dist_x*target_dist_x)+(target_dist_y*target_dist_y));
+          double target_x = 30.0;
+          double target_y = s(target_x);
+          double target_dist = sqrt(target_x*target_x + target_y*target_y);
           
           
           double x_add_on = 0;
@@ -187,12 +236,17 @@ int main() {
           }
           
           //Add the new points to list by converting them back to Global coordinate system
+//           std::cout << "New updated x y values";
           for(int i=1; i <= 50-previous_size; i++)
           {
-            double N = (dist /( 0.02 * ref_speed / 2.24));
+            double temp = (0.02 * ref_speed) / 2.24;
+            double N = (target_dist / temp);
             
-            double x_point = x_add_on + (target_dist_x/N);
+            double x_point = x_add_on + (target_x/N);
             double y_point = s(x_point);
+            
+            double before_x = x_point;
+            double before_y = y_point;
             
             x_add_on = x_point;
             
@@ -202,20 +256,22 @@ int main() {
             x_point = x_ref*cos(ref_yaw) - y_ref*sin(ref_yaw);
             y_point = x_ref*sin(ref_yaw) + y_ref*cos(ref_yaw);
             
-            x_point += x_ref;
-            y_point += y_ref;
+            x_point += ref_x;
+            y_point += ref_y;
             
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
             
+//             std::cout << "next_x_vals[" << i << "]: Before: "<< before_x << " After: " << x_point << std::endl;
+//             std::cout << "next_y_vals[" << i << "]: Before: "<< before_y << " After: " << y_point << std::endl;
             
           }
-          for(int i =0; i < next_x_vals.size(); i++)
-          {
-            std::cout << "next_x_vals[ "<< i <<"]: " << next_x_vals[i] << "   " ;
-            std::cout << "next_y_vals[ "<< i <<"]: " << next_y_vals[i] << std::endl;
-          }
-          std::cout << std::endl << std::endl << std::endl;
+//           for(int i =0; i < next_x_vals.size(); i++)
+//           {
+//             std::cout << "next_x_vals[ "<< i <<"]: " << next_x_vals[i] << "   " ;
+//             std::cout << "next_y_vals[ "<< i <<"]: " << next_y_vals[i] << std::endl;
+//           }
+//           std::cout << std::endl << std::endl << std::endl;
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
