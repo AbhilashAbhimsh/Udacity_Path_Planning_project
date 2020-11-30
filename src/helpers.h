@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string>
 #include <vector>
+#include <iostream>
 
 // for convenience
 using std::string;
@@ -153,33 +154,42 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 
   return {x,y};
 }
+
+
+
+
 // This function will provide the list of lanes where I can switch next
 vector<int> getProspectiveLanesToChange(int &lane)
 {
   vector<int> lanes;
+  std::cout << "Current Lane of car: " << lane << std::endl;
   for(int i=-1; i < 2; i++)
   {
     int new_lane = lane + i;
-    if (0 <= lane <= 2) && (new_lane != lane)
+    if ((0 <= lane <= 2) && (new_lane != lane))
     {
-      lanes.push_back(new_lane)
+      lanes.push_back(new_lane);
+      std::cout << "MIght now go to " << new_lane << std::endl;
     }
   }
+  return lanes;
 }
 
-int getBestLaneToChange(vect<int> &next_lanes, auto &sensor_fusion, const double &car_s)
+// Determine which is the best lane for this given scenario to take
+vector<int> getBestLaneToChange(const vector<int> &next_lanes, const vector<vector<double>> &sensor_fusion,
+                                const double &car_s, const int &previous_size)
 {
-  int best_lane = -1;
-  for(int i =0; i < next_lanes.size(); i++):
+  vector<int> best_lanes = {next_lanes.size(), 1};
+  for(int i =0; i < next_lanes.size(); i++)
   {
-    current_lane = next_lanes[i];
-    best_lane = current_lane;
+    int current_lane = next_lanes[i];
+    std::cout << "getBestLaneToChange: Evaluating Lane : " << current_lane << std::endl;
     // iterate over all potential future lanes
-    for(int j =0; j < sensor_fusion.size(); j++)
+    for(int j = 0; j < sensor_fusion.size(); j++)
     {
-      d = sensor_fusion[i];
+      double d = sensor_fusion[i][6];
       // check if the vehicle belong to lane that we are considering
-      if ((2 + current_lane*4 + 2 )<= d <= (2 + current_lane*4 - 2))
+      if ((2 + current_lane*4 + 2 ) <= d <=(2 + current_lane*4 - 2))
       {
         double vx = sensor_fusion[i][3];
         double vy = sensor_fusion[i][4];
@@ -188,18 +198,108 @@ int getBestLaneToChange(vect<int> &next_lanes, auto &sensor_fusion, const double
         double s = sensor_fusion[i][5];
         s += (double)previous_size*0.02*car_speed;
         // check if there is a car in that lane in +/- 60 meters from current car position
-        if (car_s - 60 <= s < car_s + 60)
+        if (car_s - 60 <= s <= car_s + 80)
         {
-          best_lane = -1;
+          std::cout << "getBestLaneToChange: There seems to be a car in the '" << current_lane << 
+            "', Hence not a good option to change lane to " << current_lane <<std::endl;
+          best_lanes[i] = -1;
+          break;
         }
       }
-      // If I find a best lane then return no need to check once again for another lane
-      if(best_lane != -1)
-      {
-        break;
-      }
+    }
+    for(int i = 0; i < best_lanes.size(); i++)
+    {
+      std::cout << "getBestLaneToChange: Lane values : " << best_lanes[i] << std::endl;
     }
   }
-  return best_lane;
+  return best_lanes;
 }
+
+// Determine the ptsx and ptsy to fit the spline
+void generate_vector_to_fit(
+  							vector<double> &ptsx, vector<double> &ptsy, 
+                            const double &car_s, const double &car_d, 
+  							const double &car_x, const double &car_y, const double &car_yaw,
+  							double &ref_x, double &ref_y, double &ref_yaw, 
+  							const int &lane, const int &new_lane,
+                            const vector<double> &maps_s, const vector<double> &maps_x,  const vector<double> &maps_y,
+  							const vector<double> &previous_path_x, const vector<double> &previous_path_y
+                           )
+{
+  int previous_size = previous_path_x.size();
+  if (previous_size < 2)
+  {
+      double pref_x = car_x - cos(car_yaw);
+      double pref_y = car_y - sin(car_yaw);
+  //     std::cout << "Initial pref_x value: " << pref_x << std::endl;
+  // 	std::cout << "Initial pref_y value: " << pref_y << std::endl;
+      ptsx.push_back(pref_x);
+      ptsx.push_back(car_x);
+
+      ptsy.push_back(pref_y);
+      ptsy.push_back(car_y);
+   }
+   else
+   {
+      ref_x = previous_path_x[previous_size-1];
+      ref_y = previous_path_y[previous_size-1];
+
+      double prev_ref_x = previous_path_x[previous_size-2];
+      double prev_ref_y = previous_path_y[previous_size-2];
+
+      ref_yaw = atan2(ref_y - prev_ref_y ,ref_x - prev_ref_x);
+
+      ptsx.push_back(prev_ref_x);
+      ptsx.push_back(ref_x);
+
+      ptsy.push_back(prev_ref_y);
+      ptsy.push_back(ref_y);
+  }
+  // determine the last points for fit the curve based on the Behavior planner's lane output
+  int temp_value = new_lane - lane;
+  
+  for(int i=1; i<5; i++)
+  {
+ 
+    double new_car_s = car_s + i*20;
+    double new_car_d = car_d + i*temp_value;
+    
+    vector<double> new_xy = getXY(new_car_s, new_car_d, maps_s, maps_x, maps_y);
+    
+    ptsx.push_back(new_xy[0]);
+    ptsy.push_back(new_xy[1]);
+  }
+  
+  std::cout << "Value Generated currently for PTSX and PTSY: \n\n" << std::endl;
+  for(int i =0 ; i< ptsx.size(); i++)
+  {
+  	std::cout << "ptsx[" << i << "] = " <<  ptsx[i] << " ,";
+    std::cout << "ptsy[" << i << "] = " <<  ptsy[i] << std::endl;
+  }
+  
+  std::cout << std::endl << std::endl;
+}  
+
+void convert_from_global_to_car_cordinate(
+  										   const double &ref_x, const double &ref_y, const double &ref_yaw, 
+  									 	   vector<double> &ptsx, vector<double> &ptsy
+                                          )
+{
+  for(int i=0; i< ptsx.size(); i++)
+  {
+    double prev_x = ptsx[i];
+    double prev_y = ptsy[i];
+            
+    double shift_x = ptsx[i] - ref_x;
+    double shift_y = ptsy[i] - ref_y;
+            
+    ptsx[i] = (shift_x*cos(0-ref_yaw) - shift_y*sin(0-ref_yaw));
+    ptsy[i] = (shift_x*sin(0-ref_yaw) + shift_y*cos(0-ref_yaw));
+            
+//             std::cout << "ptsx[" << i << "]: Before: "<< prev_x << " After: " << ptsx[i] << std::endl;
+//             std::cout << "ptsy[" << i << "]: Before: "<< prev_y << " After: " << ptsy[i] << std::endl;
+        
+    }
+}
+
 #endif  // HELPERS_H

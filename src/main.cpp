@@ -55,9 +55,11 @@ int main() {
   double MAX_SPEED = 49.5;
   double MAX_ACCELERATION = 0.224;
   double ref_speed = 0;// MPH
+  double MAX_DISTANCE_FROM_FRONT_CAR = 60; //m
   
   h.onMessage([&ref_speed, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy, &lane, &MAX_SPEED, &MAX_ACCELERATION]
+               &map_waypoints_dx,&map_waypoints_dy, &lane, &MAX_SPEED, &MAX_ACCELERATION,
+               &MAX_DISTANCE_FROM_FRONT_CAR]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
@@ -98,14 +100,18 @@ int main() {
 
           json msgJson;
 		  
+          // OUR CODE
           int previous_size = previous_path_x.size();
-          bool too_close = false;
+          bool too_close = false;  
           bool decrease_speed = false;
+          int next_lane = 0;
+          
           // Compute if car is ahead of us
           if (previous_size > 0)
           {
             car_s = end_path_s;
           }
+          
           
           for(int i=0; i< sensor_fusion.size(); i++)
           {
@@ -121,7 +127,7 @@ int main() {
               double s = sensor_fusion[i][5];
               s += (double)previous_size*0.02*car_speed;
               
-              if ((s > car_s) && (s - car_s < 30))
+              if ((s > car_s) && (s - car_s < MAX_DISTANCE_FROM_FRONT_CAR))
               {
                 std::cout << "Car too close !!!!!" << std::endl;
                 too_close = true;
@@ -134,16 +140,35 @@ int main() {
           if(too_close)
           {
             vector<int> next_lanes = getProspectiveLanesToChange(lane);
-            change_lane = getBestLaneToChange(next_lanes, sensor_fusion, car_s);
-            if (change_lane == -1)
+            vector<int> change_lane = getBestLaneToChange(next_lanes, sensor_fusion, car_s, previous_size);
+            for(int i = 0; i< change_lane.size(); i++)
+            {
+              int temp_value = change_lane[i];
+              if (temp_value != -1)
+              {
+                std::cout << "selected Lane: " << next_lane << std::endl;
+                next_lane = temp_value;
+    			//break // IF need to take right lane as priority
+              }
+            }
+            // If none of the lanes are safe to change then decrease speed
+            if (next_lane == 0)
             {
               std::cout << "Now might not be a good time to change lanes, Need to reduce speed" << std::endl;
               decrease_speed = true;
+              next_lane = lane;
             }
           }
           
+          //TODO: DELETE THIS BELOW CODE
+          // WHEN WORKING ON LANE CHANGE
+          //
+          next_lane = lane;
+          decrease_speed = true;
           
-          if(too_close)
+          
+          // Change Speed
+          if(decrease_speed)
           {
             std::cout << "Decreasing speed to " << ref_speed << std::endl;
             ref_speed -= MAX_ACCELERATION;
@@ -163,71 +188,21 @@ int main() {
           vector<double> ptsx;
           vector<double> ptsy;
           
-          if (previous_size < 2)
-          {
-            double pref_x = car_x - cos(car_yaw);
-            double pref_y = car_y - sin(car_yaw);
-//             std::cout << "Initial pref_x value: " << pref_x << std::endl;
-//             std::cout << "Initial pref_y value: " << pref_y << std::endl;
-            ptsx.push_back(pref_x);
-            ptsx.push_back(car_x);
-            
-            ptsy.push_back(pref_y);
-            ptsy.push_back(car_y);
-            
-          }
-          else
-          {
-            ref_x = previous_path_x[previous_size-1];
-            ref_y = previous_path_y[previous_size-1];
-            
-            double prev_ref_x = previous_path_x[previous_size-2];
-            double prev_ref_y = previous_path_y[previous_size-2];
-            
-            ref_yaw = atan2(ref_y - prev_ref_y ,ref_x - prev_ref_x);
-            
-            ptsx.push_back(prev_ref_x);
-            ptsx.push_back(ref_x);
-            
-            ptsy.push_back(prev_ref_y);
-            ptsy.push_back(ref_y);
-          }
-          
-          // Calculate 3 POints ahead to fit the Spline function
-          vector<double> wp0 = getXY(car_s+30, (2+lane*4), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> wp1 = getXY(car_s+60, (2+lane*4), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          vector<double> wp2 = getXY(car_s+90, (2+lane*4), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-          
-//           std::cout << "WP0 x value: " << wp0[0] << ", WP0 y value: "<< wp0[1] <<std::endl;
-//           std::cout << "WP1 x value: " << wp1[0] << ", WP1 y value: "<< wp1[1] <<std::endl;
-//           std::cout << "WP2 x value: " << wp2[0] << ", WP2 y value: "<< wp2[1] <<std::endl;
-          
-          ptsx.push_back(wp0[0]);
-          ptsx.push_back(wp1[0]);
-          ptsx.push_back(wp2[0]);
-          
-          ptsy.push_back(wp0[1]);
-          ptsy.push_back(wp1[1]);
-          ptsy.push_back(wp2[1]);
+          generate_vector_to_fit(
+            					 ptsx, ptsy, 
+                                 car_s, car_d, car_x, car_y, car_yaw,
+            					 ref_x, ref_y, ref_yaw,
+                                 lane, next_lane,
+                                 map_waypoints_s, map_waypoints_x, map_waypoints_y,
+                                 previous_path_x, previous_path_y
+                                );
           
           // Convert the present XY Global coordinate to Local Car's coordinates
-          for(int i=0; i< ptsx.size(); i++)
-          {
-            double prev_x = ptsx[i];
-            double prev_y = ptsy[i];
-            
-            double shift_x = ptsx[i] - ref_x;
-            double shift_y = ptsy[i] - ref_y;
-            
-            ptsx[i] = (shift_x*cos(0-ref_yaw) - shift_y*sin(0-ref_yaw));
-            ptsy[i] = (shift_x*sin(0-ref_yaw) + shift_y*cos(0-ref_yaw));
-            
-//             std::cout << "ptsx[" << i << "]: Before: "<< prev_x << " After: " << ptsx[i] << std::endl;
-//             std::cout << "ptsy[" << i << "]: Before: "<< prev_y << " After: " << ptsy[i] << std::endl;
-        
-          }
-          
-          // Fit the 5 points with spline
+          convert_from_global_to_car_cordinate(
+            									ref_x, ref_y, ref_yaw,
+            									ptsx, ptsy
+          									  ); 
+          // Fit the points with spline
           tk::spline s;
    		  s.set_points(ptsx,ptsy);
           
