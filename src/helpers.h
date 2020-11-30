@@ -157,7 +157,25 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 
 
 
-
+int getCurrentLane(double &car_d)
+{
+  std::cout << "getCurrentLane: car_d: " << car_d << " ";
+  if ((car_d >= 8) && (car_d < 12))
+  {
+    std::cout << "Value: 2" << std::endl;
+    return 2;
+  }
+  else if ((car_d >= 4) && (car_d < 8))
+  {
+    std::cout << "Value: 1" << std::endl;
+    return 1;
+  }
+  else
+  {
+    std::cout << "Value: 0" << std::endl;
+    return 0;
+  }
+}
 // This function will provide the list of lanes where I can switch next
 vector<int> getProspectiveLanesToChange(int &lane)
 {
@@ -166,10 +184,10 @@ vector<int> getProspectiveLanesToChange(int &lane)
   for(int i=-1; i < 2; i++)
   {
     int new_lane = lane + i;
-    if ((0 <= lane <= 2) && (new_lane != lane))
+    if ((new_lane != lane) && (new_lane >= 0) && (new_lane <= 2))
     {
       lanes.push_back(new_lane);
-      std::cout << "MIght now go to " << new_lane << std::endl;
+      std::cout << new_lane << " Lane Might be a one of the good option to go" <<  std::endl;
     }
   }
   return lanes;
@@ -179,8 +197,9 @@ vector<int> getProspectiveLanesToChange(int &lane)
 vector<int> getBestLaneToChange(const vector<int> &next_lanes, const vector<vector<double>> &sensor_fusion,
                                 const double &car_s, const int &previous_size)
 {
-  vector<int> best_lanes = {next_lanes.size(), 1};
-  for(int i =0; i < next_lanes.size(); i++)
+  int next_lane_size = next_lanes.size();
+  vector<int> best_lanes = {next_lane_size, 0};
+  for(int i =0; i < next_lane_size; i++)
   {
     int current_lane = next_lanes[i];
     std::cout << "getBestLaneToChange: Evaluating Lane : " << current_lane << std::endl;
@@ -207,16 +226,16 @@ vector<int> getBestLaneToChange(const vector<int> &next_lanes, const vector<vect
         }
       }
     }
-    for(int i = 0; i < best_lanes.size(); i++)
+  }
+  for(int i = 0; i < best_lanes.size(); i++)
     {
       std::cout << "getBestLaneToChange: Lane values : " << best_lanes[i] << std::endl;
     }
-  }
   return best_lanes;
 }
 
 // Determine the ptsx and ptsy to fit the spline
-void generate_vector_to_fit(
+void generateVectorToFit(
   							vector<double> &ptsx, vector<double> &ptsy, 
                             const double &car_s, const double &car_d, 
   							const double &car_x, const double &car_y, const double &car_yaw,
@@ -257,13 +276,13 @@ void generate_vector_to_fit(
   }
   // determine the last points for fit the curve based on the Behavior planner's lane output
   int temp_value = new_lane - lane;
-  
+//   std::cout << "\n\nCurrent Value of temp_lane: " << temp_value << std::endl << std::endl;
   for(int i=1; i<5; i++)
   {
  
-    double new_car_s = car_s + i*20;
-    double new_car_d = car_d + i*temp_value;
-    
+    double new_car_s = car_s + i*10;
+    double new_car_d = (lane*4 + 2) + i*temp_value;
+    std::cout << "new_s: " << new_car_s << ", new_d: " << new_car_d << std::endl;
     vector<double> new_xy = getXY(new_car_s, new_car_d, maps_s, maps_x, maps_y);
     
     ptsx.push_back(new_xy[0]);

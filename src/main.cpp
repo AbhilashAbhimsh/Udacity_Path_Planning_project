@@ -51,14 +51,13 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
   
-  int lane = 1;
   double MAX_SPEED = 49.5;
   double MAX_ACCELERATION = 0.224;
   double ref_speed = 0;// MPH
   double MAX_DISTANCE_FROM_FRONT_CAR = 60; //m
   
   h.onMessage([&ref_speed, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-               &map_waypoints_dx,&map_waypoints_dy, &lane, &MAX_SPEED, &MAX_ACCELERATION,
+               &map_waypoints_dx,&map_waypoints_dy, &MAX_SPEED, &MAX_ACCELERATION,
                &MAX_DISTANCE_FROM_FRONT_CAR]
               (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                uWS::OpCode opCode) {
@@ -104,7 +103,8 @@ int main() {
           int previous_size = previous_path_x.size();
           bool too_close = false;  
           bool decrease_speed = false;
-          int next_lane = 0;
+          int lane = getCurrentLane(car_d);
+          int next_lane = lane;
           
           // Compute if car is ahead of us
           if (previous_size > 0)
@@ -146,25 +146,26 @@ int main() {
               int temp_value = change_lane[i];
               if (temp_value != -1)
               {
-                std::cout << "selected Lane: " << next_lane << std::endl;
+                
                 next_lane = temp_value;
-    			//break // IF need to take right lane as priority
+                std::cout << "selected Lane: " << next_lane << std::endl;
+    			break; // IF need to take right lane as priority
               }
             }
             // If none of the lanes are safe to change then decrease speed
-            if (next_lane == 0)
+            if (next_lane == lane)
             {
               std::cout << "Now might not be a good time to change lanes, Need to reduce speed" << std::endl;
               decrease_speed = true;
-              next_lane = lane;
             }
           }
-          
+          std::cout << "Current value of D: " << car_d << ", ";
+          std::cout << " lane: " << lane << ", " << "next_lane: " << next_lane << std::endl;
           //TODO: DELETE THIS BELOW CODE
           // WHEN WORKING ON LANE CHANGE
           //
-          next_lane = lane;
-          decrease_speed = true;
+//           next_lane = lane;
+//           decrease_speed = true;
           
           
           // Change Speed
@@ -188,7 +189,7 @@ int main() {
           vector<double> ptsx;
           vector<double> ptsy;
           
-          generate_vector_to_fit(
+          generateVectorToFit(
             					 ptsx, ptsy, 
                                  car_s, car_d, car_x, car_y, car_yaw,
             					 ref_x, ref_y, ref_yaw,
