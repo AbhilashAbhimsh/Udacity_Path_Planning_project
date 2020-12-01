@@ -147,7 +147,7 @@ int main() {
               if (temp_value != -1)
               {
                 
-                next_lane = temp_value;
+                next_lane = next_lanes[i];
                 std::cout << "selected Lane: " << next_lane << std::endl;
     			break; // IF need to take right lane as priority
               }
@@ -159,17 +159,17 @@ int main() {
               decrease_speed = true;
             }
           }
-          std::cout << "Current value of D: " << car_d << ", ";
-          std::cout << " lane: " << lane << ", " << "next_lane: " << next_lane << std::endl;
+//           std::cout << "Current value of D: " << car_d << ", ";
+//           std::cout << " lane: " << lane << ", " << "next_lane: " << next_lane << std::endl;
           //TODO: DELETE THIS BELOW CODE
           // WHEN WORKING ON LANE CHANGE
           //
 //           next_lane = lane;
 //           decrease_speed = true;
           
-          
-          // Change Speed
-          if(decrease_speed)
+          std::cout << "Current  Lane: " << lane << ", Future Lane : " << next_lane << std::endl;
+          // Change Speed just to make sure car is not going back
+          if((decrease_speed) && (ref_speed > 0))
           {
             std::cout << "Decreasing speed to " << ref_speed << std::endl;
             ref_speed -= MAX_ACCELERATION;
@@ -184,8 +184,6 @@ int main() {
           double ref_y = car_y;
           double ref_yaw = deg2rad(car_yaw);
           
-//           std::cout << "Initial X value: " << car_x << std::endl;
-//           std::cout << "Initial Y value: " << car_y << std::endl;
           vector<double> ptsx;
           vector<double> ptsy;
           
@@ -208,12 +206,9 @@ int main() {
    		  s.set_points(ptsx,ptsy);
           
           // Determine the spacing between points for optimal Jerk Free path
-          double target_x = 30.0;
+          double target_x = 45.0;
           double target_y = s(target_x);
           double target_dist = sqrt(target_x*target_x + target_y*target_y);
-          
-          
-          double x_add_on = 0;
           
           vector<double> next_x_vals;
           vector<double> next_y_vals;
@@ -227,14 +222,19 @@ int main() {
           
           //Add the new points to list by converting them back to Global coordinate system
 //           std::cout << "New updated x y values";
-          for(int i=1; i <= 50-previous_size; i++)
+          int size_ptx = ptsx.size();
+//           double x_add_on = 0.5 * ptsx[size_ptx - 4];
+          double x_add_on = 0;
+         
+          std::cout << "New Values to be Generated: " << 30-previous_size << std::endl;
+          for(int i=1; i <= 30-previous_size; i++)
           {
             double temp = (0.02 * ref_speed) / 2.24;
             double N = (target_dist / temp);
             
             double x_point = x_add_on + (target_x/N);
             double y_point = s(x_point);
-            
+//             std::cout << "X_point: " << x_point << std::endl;
             double before_x = x_point;
             double before_y = y_point;
             
@@ -249,6 +249,8 @@ int main() {
             x_point += ref_x;
             y_point += ref_y;
             
+            vector<double> traj = getFrenet(x_point, y_point, ref_yaw, map_waypoints_x, map_waypoints_y);
+//             std::cout << "Traj  data : (" << traj[0] << ", " << traj[1] << ")" << std::endl;
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
             
@@ -256,19 +258,7 @@ int main() {
 //             std::cout << "next_y_vals[" << i << "]: Before: "<< before_y << " After: " << y_point << std::endl;
             
           }
-//           for(int i =0; i < next_x_vals.size(); i++)
-//           {
-//             std::cout << "next_x_vals[ "<< i <<"]: " << next_x_vals[i] << "   " ;
-//             std::cout << "next_y_vals[ "<< i <<"]: " << next_y_vals[i] << std::endl;
-//           }
-//           std::cout << std::endl << std::endl << std::endl;
-          /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
-           */
-		  
-          
-		  
+		  std::cout << std::endl<< std::endl;
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 

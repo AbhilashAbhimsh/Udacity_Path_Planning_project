@@ -159,20 +159,20 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
 
 int getCurrentLane(double &car_d)
 {
-  std::cout << "getCurrentLane: car_d: " << car_d << " ";
+//   std::cout << "getCurrentLane: car_d: " << car_d << " ";
   if ((car_d >= 8) && (car_d < 12))
   {
-    std::cout << "Value: 2" << std::endl;
+//     std::cout << "Value: 2" << std::endl;
     return 2;
   }
   else if ((car_d >= 4) && (car_d < 8))
   {
-    std::cout << "Value: 1" << std::endl;
+//     std::cout << "Value: 1" << std::endl;
     return 1;
   }
   else
   {
-    std::cout << "Value: 0" << std::endl;
+//     std::cout << "Value: 0" << std::endl;
     return 0;
   }
 }
@@ -180,14 +180,14 @@ int getCurrentLane(double &car_d)
 vector<int> getProspectiveLanesToChange(int &lane)
 {
   vector<int> lanes;
-  std::cout << "Current Lane of car: " << lane << std::endl;
+//   std::cout << "Current Lane of car: " << lane << std::endl;
   for(int i=-1; i < 2; i++)
   {
     int new_lane = lane + i;
     if ((new_lane != lane) && (new_lane >= 0) && (new_lane <= 2))
     {
       lanes.push_back(new_lane);
-      std::cout << new_lane << " Lane Might be a one of the good option to go" <<  std::endl;
+      std::cout <<  " Lane No: " << new_lane << " Might be a one of the good option to go" <<  std::endl;
     }
   }
   return lanes;
@@ -198,11 +198,12 @@ vector<int> getBestLaneToChange(const vector<int> &next_lanes, const vector<vect
                                 const double &car_s, const int &previous_size)
 {
   int next_lane_size = next_lanes.size();
-  vector<int> best_lanes = {next_lane_size, 0};
+  vector<int> best_lanes(next_lane_size, 0);
+  std::cout << std::endl;
   for(int i =0; i < next_lane_size; i++)
   {
     int current_lane = next_lanes[i];
-    std::cout << "getBestLaneToChange: Evaluating Lane : " << current_lane << std::endl;
+//     std::cout << "getBestLaneToChange: Evaluating Lane : " << current_lane << std::endl;
     // iterate over all potential future lanes
     for(int j = 0; j < sensor_fusion.size(); j++)
     {
@@ -217,7 +218,7 @@ vector<int> getBestLaneToChange(const vector<int> &next_lanes, const vector<vect
         double s = sensor_fusion[i][5];
         s += (double)previous_size*0.02*car_speed;
         // check if there is a car in that lane in +/- 60 meters from current car position
-        if (car_s - 60 <= s <= car_s + 80)
+        if (car_s - 30 <= s <= car_s + 60)
         {
           std::cout << "getBestLaneToChange: There seems to be a car in the '" << current_lane << 
             "', Hence not a good option to change lane to " << current_lane <<std::endl;
@@ -227,10 +228,6 @@ vector<int> getBestLaneToChange(const vector<int> &next_lanes, const vector<vect
       }
     }
   }
-  for(int i = 0; i < best_lanes.size(); i++)
-    {
-      std::cout << "getBestLaneToChange: Lane values : " << best_lanes[i] << std::endl;
-    }
   return best_lanes;
 }
 
@@ -280,23 +277,23 @@ void generateVectorToFit(
   for(int i=1; i<5; i++)
   {
  
-    double new_car_s = car_s + i*10;
+    double new_car_s = car_s + i*11;
     double new_car_d = (lane*4 + 2) + i*temp_value;
-    std::cout << "new_s: " << new_car_s << ", new_d: " << new_car_d << std::endl;
+//     std::cout << "new_s: " << new_car_s << ", new_d: " << new_car_d << std::endl;
     vector<double> new_xy = getXY(new_car_s, new_car_d, maps_s, maps_x, maps_y);
     
     ptsx.push_back(new_xy[0]);
     ptsy.push_back(new_xy[1]);
   }
+//   for(int i =0 ; i< ptsx.size(); i++)
+//   {
+//   	std::cout << "ptsx[" << i << "] = " <<  ptsx[i] << " ,";
+//     std::cout << "ptsy[" << i << "] = " <<  ptsy[i] << std::endl;
+//   }
+//   std::cout << "Value Generated currently for PTSX and PTSY: \n\n" << std::endl;
   
-  std::cout << "Value Generated currently for PTSX and PTSY: \n\n" << std::endl;
-  for(int i =0 ; i< ptsx.size(); i++)
-  {
-  	std::cout << "ptsx[" << i << "] = " <<  ptsx[i] << " ,";
-    std::cout << "ptsy[" << i << "] = " <<  ptsy[i] << std::endl;
-  }
   
-  std::cout << std::endl << std::endl;
+//   std::cout << std::endl << std::endl;
 }  
 
 void convert_from_global_to_car_cordinate(
@@ -315,9 +312,8 @@ void convert_from_global_to_car_cordinate(
     ptsx[i] = (shift_x*cos(0-ref_yaw) - shift_y*sin(0-ref_yaw));
     ptsy[i] = (shift_x*sin(0-ref_yaw) + shift_y*cos(0-ref_yaw));
             
-//             std::cout << "ptsx[" << i << "]: Before: "<< prev_x << " After: " << ptsx[i] << std::endl;
-//             std::cout << "ptsy[" << i << "]: Before: "<< prev_y << " After: " << ptsy[i] << std::endl;
-        
+//     std::cout << "ptsx[" << i << "]: Before: "<< prev_x << " After: " << ptsx[i] << "\t\t";
+//     std::cout << "ptsy[" << i << "]: Before: "<< prev_y << " After: " << ptsy[i] << std::endl;    
     }
 }
 
