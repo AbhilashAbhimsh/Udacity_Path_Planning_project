@@ -54,7 +54,7 @@ int main() {
   double MAX_SPEED = 49.5;
   double MAX_ACCELERATION = 0.224;
   double ref_speed = 0;// MPH
-  double MAX_DISTANCE_FROM_FRONT_CAR = 60; //m
+  double MAX_DISTANCE_FROM_FRONT_CAR = 30; //m
   
   h.onMessage([&ref_speed, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
                &map_waypoints_dx,&map_waypoints_dy, &MAX_SPEED, &MAX_ACCELERATION,
@@ -112,7 +112,7 @@ int main() {
             car_s = end_path_s;
           }
           
-          
+          // Check if there is any car ahead
           for(int i=0; i< sensor_fusion.size(); i++)
           {
             double d = sensor_fusion[i][6];
@@ -136,39 +136,45 @@ int main() {
             }
           }
           
-          // New code
+          //Check if there is car ahead
           if(too_close)
           {
+            //Getthe list of lanes that we can consider to perform lane change
             vector<int> next_lanes = getProspectiveLanesToChange(lane);
+            // Out of list of Lanes we can perform Lane Change evaluate which lanes are safe to perform Lane change
             vector<int> change_lane = getBestLaneToChange(next_lanes, sensor_fusion, car_s, previous_size);
+            // Check what is the density of Traffic[Number of cars ahead in the Future Lane] incase we have 2 Lanes to choose from. In case of when the car is in lane 1 and lane 2 and lne 0 are safe to perform Lane change
+            vector<int> traffic_index = getTrafficStateInLanes(next_lanes, sensor_fusion, car_s, previous_size);
+            int MAX_CARS = 99999;
+            // Select the Lane that is safe to perform Lane Chnage and Has less traffic ahead in that lane
             for(int i = 0; i< change_lane.size(); i++)
             {
               int temp_value = change_lane[i];
-              if (temp_value != -1)
+              // Check if its safe to Consider the Lane
+              if (temp_value != -1 && traffic_index[i] < MAX_CARS)
               {
-                
                 next_lane = next_lanes[i];
-                std::cout << "selected Lane: " << next_lane << std::endl;
-    			break; // IF need to take right lane as priority
+                std::cout << "selected Lane: " << next_lane  << " Traffic: " << traffic_index[i] << std::endl;
+                MAX_CARS = traffic_index[i];
+                decrease_speed = true;
+    			//break; // IF need to take right lane as priority
               }
             }
+            
             // If none of the lanes are safe to change then decrease speed
             if (next_lane == lane)
             {
-              std::cout << "Now might not be a good time to change lanes, Need to reduce speed" << std::endl;
+              std::cout << " CANT CHANGE LANE" << std::endl;
               decrease_speed = true;
             }
+            else
+            {
+              std::cout << "Lane change from Lane: " << lane << " to  Lane: " << next_lane << std::endl;
+            }
           }
-//           std::cout << "Current value of D: " << car_d << ", ";
-//           std::cout << " lane: " << lane << ", " << "next_lane: " << next_lane << std::endl;
-          //TODO: DELETE THIS BELOW CODE
-          // WHEN WORKING ON LANE CHANGE
-          //
-//           next_lane = lane;
-//           decrease_speed = true;
-          
-          std::cout << "Current  Lane: " << lane << ", Future Lane : " << next_lane << std::endl;
-          // Change Speed just to make sure car is not going back
+
+
+          // Change Speed and  make sure that car is not going back
           if((decrease_speed) && (ref_speed > 0))
           {
             std::cout << "Decreasing speed to " << ref_speed << std::endl;
@@ -186,7 +192,7 @@ int main() {
           
           vector<double> ptsx;
           vector<double> ptsy;
-          
+          //Generate the set of values to fit the spline function
           generateVectorToFit(
             					 ptsx, ptsy, 
                                  car_s, car_d, car_x, car_y, car_yaw,
@@ -206,7 +212,7 @@ int main() {
    		  s.set_points(ptsx,ptsy);
           
           // Determine the spacing between points for optimal Jerk Free path
-          double target_x = 45.0;
+          double target_x = 30.0;
           double target_y = s(target_x);
           double target_dist = sqrt(target_x*target_x + target_y*target_y);
           
@@ -220,21 +226,19 @@ int main() {
             next_y_vals.push_back(previous_path_y[i]);
           }
           
-          //Add the new points to list by converting them back to Global coordinate system
-//           std::cout << "New updated x y values";
-          int size_ptx = ptsx.size();
-//           double x_add_on = 0.5 * ptsx[size_ptx - 4];
+          //Set maximum number of entries in the next_x_vlas and next_y_vals
+          int MAX_VALUES_IN_NEXT = 12;
           double x_add_on = 0;
-         
-          std::cout << "New Values to be Generated: " << 30-previous_size << std::endl;
-          for(int i=1; i <= 30-previous_size; i++)
+		  
+          // Generate new values for trajectory
+          for(int i=1; i <= MAX_VALUES_IN_NEXT -previous_size; i++)
           {
             double temp = (0.02 * ref_speed) / 2.24;
             double N = (target_dist / temp);
             
             double x_point = x_add_on + (target_x/N);
             double y_point = s(x_point);
-//             std::cout << "X_point: " << x_point << std::endl;
+
             double before_x = x_point;
             double before_y = y_point;
             
@@ -249,16 +253,11 @@ int main() {
             x_point += ref_x;
             y_point += ref_y;
             
-            vector<double> traj = getFrenet(x_point, y_point, ref_yaw, map_waypoints_x, map_waypoints_y);
-//             std::cout << "Traj  data : (" << traj[0] << ", " << traj[1] << ")" << std::endl;
             next_x_vals.push_back(x_point);
             next_y_vals.push_back(y_point);
             
-//             std::cout << "next_x_vals[" << i << "]: Before: "<< before_x << " After: " << x_point << std::endl;
-//             std::cout << "next_y_vals[" << i << "]: Before: "<< before_y << " After: " << y_point << std::endl;
-            
           }
-		  std::cout << std::endl<< std::endl;
+		  
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
